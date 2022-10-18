@@ -1,0 +1,4 @@
+wandb_entity: cs532-2022
+wandb_project: HW1-Q3
+wandb_logging: false
+seed: 897

@@ -1,0 +1,197 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.3
+    code_path: code/run.py
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.7
+    start_time: 1665635907.587602
+    t:
+      1:
+      - 1
+      - 50
+      - 55
+      2:
+      - 1
+      - 50
+      - 55
+      3:
+      - 23
+      4: 3.9.7
+      5: 0.13.3
+      8:
+      - 5
+    visualize:
+      Program 1:
+        panel_config:
+          fieldSettings:
+            value: mu
+          panelDefId: wandb/histogram/v0
+          stringSettings:
+            title: Program 1; mu
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 1_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2
+      Program 2; bias:
+        panel_config:
+          fieldSettings:
+            value: bias
+          panelDefId: wandb/histogram/v0
+          stringSettings:
+            title: Program 2; bias
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 2; bias_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2
+      Program 2; scatter:
+        panel_config:
+          fieldSettings:
+            x: slope
+            y: bias
+          panelDefId: wandb/scatter/v0
+          stringSettings:
+            title: Program 2; slope vs. bias
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 2; scatter_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2
+      Program 2; slope:
+        panel_config:
+          fieldSettings:
+            value: slope
+          panelDefId: wandb/histogram/v0
+          stringSettings:
+            title: Program 2; slope
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 2; slope_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2
+      Program 3:
+        panel_config:
+          fieldSettings:
+            value: x
+          panelDefId: wandb/histogram/v0
+          stringSettings:
+            title: Program 3; Are the points from the same cluster?
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 3_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2
+      Program 4:
+        panel_config:
+          fieldSettings:
+            value: x
+          panelDefId: wandb/histogram/v0
+          stringSettings:
+            title: Program 4; Is it raining?
+          transform:
+            name: tableWithLeafColNames
+          userQuery:
+            queryFields:
+            - args:
+              - name: runSets
+                value: ${runSets}
+              fields:
+              - fields: []
+                name: id
+              - fields: []
+                name: name
+              - fields: []
+                name: _defaultColorIndex
+              - args:
+                - name: tableKey
+                  value: Program 4_table
+                fields: []
+                name: summaryTable
+              name: runSets
+        panel_type: Vega2

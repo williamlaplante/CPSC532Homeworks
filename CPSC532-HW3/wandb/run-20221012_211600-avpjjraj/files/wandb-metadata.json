@@ -1,0 +1,22 @@
+{
+    "os": "macOS-10.16-x86_64-i386-64bit",
+    "python": "3.9.7",
+    "heartbeatAt": "2022-10-13T04:16:01.389629",
+    "startedAt": "2022-10-13T04:16:00.947074",
+    "docker": null,
+    "cpu_count": 8,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/Users/william/Documents/UBC/CPSC 532W/CPSC532Homeworks/CPSC532-HW3/run.py",
+    "codePath": "run.py",
+    "git": {
+        "remote": "https://github.com/williamlaplante/CPSC532-HW2.git",
+        "commit": "459d1f85beb793a21a95a44555e29118892d1f67"
+    },
+    "email": "williamlaplante123@gmail.com",
+    "root": "/Users/william/Documents/UBC/CPSC 532W/CPSC532Homeworks/CPSC532-HW3",
+    "host": "dhcp-128-189-93-207.ubcsecure.wireless.ubc.ca",
+    "username": "root",
+    "executable": "/Library/Frameworks/Python.framework/Versions/3.9/bin/python3"
+}

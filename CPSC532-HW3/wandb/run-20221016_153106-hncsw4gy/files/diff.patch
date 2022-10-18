@@ -1,0 +1,633 @@
+diff --git a/HMC.py b/HMC.py
+index 7d1b64a..c0fb49c 100644
+--- a/HMC.py
++++ b/HMC.py
+@@ -1,52 +1,157 @@
+ import torch as tc
++import json
++from copy import deepcopy
++from tqdm import tqdm
++
++from graph_based_sampling import evaluate_graph, graph
++from evaluation_based_sampling import Env, Eval, standard_env
++
++def split_latent_obs(g : graph)-> tuple[list, list]:
++    X = []
++    Y = []
++    for v in g.Graph["V"]: #iterate over the vertices in the graph
++        if v in g.Graph["Y"].keys(): #if its observed
++            Y.append(v)
++        else: #else its latent
++            X.append(v)
++
++    return X, Y
++
++def sample_from_joint(g : graph) -> dict:
++
++    ordered_vars = g.topological()
++    env = standard_env()
++    X, Y = split_latent_obs(g)
++
++    for v in ordered_vars:
++        if v in X: # if the vertex is latent, sample from the prior
++            expr = g.Graph["P"][v]
++            env[v], _ = Eval(expr, {"logW":tc.tensor(0.0)}, env)
++        elif v in Y: #if the vertex is observed, get the observed value
++            env[v] = g.Graph["Y"][v]
++
++    sample = {v : env[v] for v in X+Y}
++    return sample
++
++def U(X : dict, Y : dict, g : graph)-> tc.tensor:
++    env = standard_env()
++    env.update(X)
++    env.update(Y)
++    sigma = {"logW": tc.tensor(0.0)}
++
++    for y in Y.keys():
++        d, _ = Eval(g.Graph["P"][y][1], {"logW":tc.tensor(0.0)}, env)
++        sigma["logW"] = sigma["logW"] + d.log_prob(tc.tensor(Y[y]).float())
++    
++    return -sigma["logW"]
++
++def K(R : tc.tensor, M_inv : tc.tensor) -> tc.tensor:
++    if R.ndim<=1:
++        return 0.5 * tc.matmul(R, tc.matmul(M_inv, R))
++    else:
++        return 0.5 * tc.matmul(R.T, tc.matmul(M_inv, R))
++
++def H(X: dict ,Y: dict, R : tc.tensor, M_inv : tc.tensor, g : graph):
++    
++    return U(X, Y, g) + K(R, M_inv)
++
++def grad(X : dict, Y : dict, g : graph):
++    u = U(X, Y, g)
++    gradients = tc.zeros(len(X))
++
++    if u.requires_grad!=True: #hack : this happens when the function is Id; i.e. no operations in the graph
++        return gradients
++
++    u.backward()
++
++    for i, key in enumerate(list(X.keys())):
++        if X[key].grad!=None: 
++            gradients[i] = X[key].grad
++        else:
++            pass
++    
++    return gradients
++
++def leapfrog(X : dict, Y : dict, R : tc.tensor, T : int, eps : float, g : graph)-> tuple[dict, tc.tensor]:
++    
++    def inc_dict(d : dict, delta_vec : tc.tensor)-> dict: #utility function to increment a dictionary of values by delta_vec
++        v = {}
++        for i, k in enumerate(list(d.keys())):
++            v[k] = d[k].detach() + delta_vec[i]
++            v[k].requires_grad = True
++        return v
++        
++    R = R - 0.5 * eps * grad(X, Y, g)
++
++    for t in range(1, T):
++        X = inc_dict(X, eps * R)
++        R = R - eps * grad(X, Y, g)
++    
++    X = inc_dict(X, eps*R)
++    R = R - 0.5 * eps * grad(X, Y, g)
++
++    return X, R
++
++def HMC(X : dict, Y : dict, num_samples : int, T : int, M : tc.tensor, eps : float, g : graph) -> list:
++    samples = []
++
++    M_inv = M.inverse()
++    R_dist = tc.distributions.MultivariateNormal(tc.zeros(len(M)), M)
++
++    for s in tqdm(range(num_samples)):
++        R = R_dist.sample() #get a random momentum vector
++        X_new, R_new = leapfrog(deepcopy(X), Y, R, T, eps, g) #integrate the Hamiltonian to get a new sample
++
++        u = tc.distributions.Uniform(0,1).sample()
++        ratio = tc.exp(- H(X_new, Y, R_new, M_inv, g) + H(X, Y, R, M_inv, g))
++        
++        if u < ratio: #MH step
++            X = X_new
++        
++        samples.append(X)
++
++    return samples
++
++def HMC_sampling(program, prog_set="HW3", num_samples=int(1e3), T=10, eps=0.1, M_scale=1, verbose=False):
++    
++    #get the program
++    json_prog = './programs/' + prog_set + '/%d_graph.json'%(program)
++
++    with open(json_prog) as f:
++        graph_json = json.load(f)
++
++    g = graph(graph_json)
++
++    X, Y = split_latent_obs(g)
++
++    initial_sample = sample_from_joint(g) #get a sample from the joint
++
++    Y = {k : initial_sample[k] for k in initial_sample.keys() if k in Y}
++    X = {k : initial_sample[k] for k in initial_sample.keys() if k in X}
++
++    for x in X.keys(): #make the latent floats if needed, and tell torch to require the gradient for the latent vars
++        X[x] = (X[x] if tc.is_tensor(X[x]) else tc.tensor(X[x]).type(tc.float))
++        X[x].requires_grad = True
++
++    M = tc.eye(len(X)) * M_scale
++
++    chain = HMC(X, Y, num_samples, T, M, eps, g)
++
++    samples = []
++
++    for sample in chain:
++        #initialize an environment
++        env = standard_env()
++        env.update(sample) #append the sample values
++
++        #evaluate the program based on the environment containing the sample
++        ret, _ = Eval(g.Program, {"logW":tc.tensor(0.0)}, env)
++        samples.append(ret) #add the evaluation of the sample to the samples list
++
++    return samples
++
++    
++
++
++
+ 
+-def HMC_sampling(lnf, start, n_points=int(1e3), M=1., dt=0.1, T=1., verbose=False):
+-    '''
+-    Hamiltonian Monte Carlo to create a chain of length n
+-    lnf: ln(f(x)) natural logarithm of the target function
+-    start: starting location in parameter space
+-    n_points: Number of points per chain
+-    M: Mass for the 'particles' TODO: Make matrix
+-    dt: Time-step for the particles
+-    T: Integration time per step for the particles
+-    '''
+-    # Functions for leap-frog integration
+-    def get_gradient(x, lnf):
+-        x = x.detach()
+-        x.requires_grad_()
+-        lnf(x).backward()
+-        dlnfx = x.grad
+-        x = x.detach() # TODO: Not sure if this is necessary
+-        return dlnfx
+-    def leap_frog_step(x, p, lnf, M, dt):
+-        dlnfx = get_gradient(x, lnf)
+-        p_half = p+0.5*dlnfx*dt
+-        x_full = x+p_half*dt/M
+-        dlnfx = get_gradient(x_full, lnf)
+-        p_full = p_half+0.5*dlnfx*dt
+-        return x_full, p_full
+-    def leap_frog_integration(x_init, p_init, lnf, M, dt, T):
+-        N_steps = int(T/dt)
+-        x, p = tc.clone(x_init), tc.clone(p_init)
+-        for _ in range(N_steps):
+-            x, p = leap_frog_step(x, p, lnf, M, dt)
+-        return x, p
+-    def Hamiltonian(x, p, lnf, M):
+-        T = 0.5*tc.dot(p, p)/M
+-        V = -lnf(x)
+-        return T+V
+-    # MCMC step
+-    n = len(start)
+-    x_old = tc.clone(start); xs = []; n_accepted = 0
+-    for i in range(n_points):
+-        p_old = tc.normal(0., 1., size=(n,))
+-        if i == 0: H_old = 0.
+-        x_new, p_new = leap_frog_integration(x_old, p_old, lnf, M, dt, T)
+-        H_new = Hamiltonian(x_new, p_new, lnf, M)
+-        acceptance = 1. if (i == 0) else min(tc.exp(H_old-H_new), 1.) # Acceptance probability
+-        accept = (tc.rand((1,)) < acceptance)
+-        if accept: x_old, H_old = x_new, H_new; n_accepted += 1
+-        xs.append(x_old)
+-    chain = tc.stack(xs)
+-    if verbose: print('Acceptance fraction: %1.2f'%(n_accepted/n_points))
+-    return chain
+\ No newline at end of file
+diff --git a/MH_gibbs.py b/MH_gibbs.py
+index a70bc85..7b64184 100644
+--- a/MH_gibbs.py
++++ b/MH_gibbs.py
+@@ -1,7 +1,7 @@
+ import json
+ import numpy as np
+ import torch as tc
+-from copy import copy
++from copy import deepcopy
+ from tqdm import tqdm
+ 
+ from graph_based_sampling import standard_env, graph, evaluate_graph
+@@ -34,8 +34,11 @@ def MH_gibbs(program, prog_set="HW3", num_samples=int(1e3), verbose=False):
+         d_p, _ = Eval(Q[x], {"logW":tc.tensor(0.0)}, X_p) #Evaluate expression of x given Env X_p
+ 
+         log_alpha = d_p.log_prob(X[x]) - d.log_prob(X_p[x])
+-        for v in ordered_vars:
++
++        Vx = [var for var in ordered_vars if var in g.Graph["A"][x] + [x]] #the children of x, in topological order
++        for v in Vx:
+             _, s1 = Eval(g.Graph["P"][v], {"logW":tc.tensor(0.0)}, X_p)
++
+             _, s2 = Eval(g.Graph["P"][v], {"logW":tc.tensor(0.0)}, X)
+             log_alpha += s1["logW"]
+             log_alpha -= s2["logW"]
+@@ -47,7 +50,7 @@ def MH_gibbs(program, prog_set="HW3", num_samples=int(1e3), verbose=False):
+ 
+         for x in ordered_latent_vars:
+             d, _ = Eval(Q[x], {"logW":tc.tensor(0.0)}, X) #get the distribution for the latent variable x
+-            X_p = copy(X) #make a copy of the past state and call it the new state
++            X_p = deepcopy(X) #make a copy of the past state and call it the new state
+ 
+             X_p[x] = d.sample() #evaluate the latent variable's expression, which is a sample
+ 
+@@ -56,7 +59,7 @@ def MH_gibbs(program, prog_set="HW3", num_samples=int(1e3), verbose=False):
+             u = tc.distributions.Uniform(0,1).sample()
+ 
+             if u < alpha:
+-                X = X_p #if X_p is better (alpha large), accept it and replace X
++                X = deepcopy(X_p) #if X_p is better (alpha large), accept it and replace X
+ 
+         return X
+ 
+diff --git a/code_testing/Untitled.ipynb b/code_testing/Untitled.ipynb
+index a238f31..e3caaac 100644
+--- a/code_testing/Untitled.ipynb
++++ b/code_testing/Untitled.ipynb
+@@ -2,32 +2,33 @@
+  "cells": [
+   {
+    "cell_type": "code",
+-   "execution_count": 1,
+-   "id": "ff92a804",
++   "execution_count": 42,
++   "id": "308939a6",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+     "import json\n",
+     "from graphlib import TopologicalSorter\n",
++    "from evaluation_based_sampling_copy import Env, standard_env\n",
+     "from copy import copy\n",
+     "import torch as tc"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 2,
+-   "id": "e3f7786a",
++   "execution_count": 38,
++   "id": "d4ef5715",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+-    "with open(\"../programs/HW3/2_graph.json\") as f:\n",
++    "with open(\"../programs/HW3/3_graph.json\") as f:\n",
+     "    g = json.load(f)"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 3,
+-   "id": "77ee12e4",
++   "execution_count": 39,
++   "id": "4fbb3fe3",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+@@ -36,8 +37,8 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 4,
+-   "id": "c7d1cc33",
++   "execution_count": 40,
++   "id": "b7922b0b",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+@@ -47,17 +48,30 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 9,
+-   "id": "1f8c8f18",
++   "execution_count": 41,
++   "id": "21ca23c8",
+    "metadata": {},
+    "outputs": [
+     {
+      "data": {
+       "text/plain": [
+-       "['sample1', 'sample2']"
++       "['sample6',\n",
++       " 'sample3',\n",
++       " 'sample1',\n",
++       " 'sample2',\n",
++       " 'sample4',\n",
++       " 'sample19',\n",
++       " 'sample0',\n",
++       " 'sample5',\n",
++       " 'sample15',\n",
++       " 'sample7',\n",
++       " 'sample9',\n",
++       " 'sample13',\n",
++       " 'sample11',\n",
++       " 'sample17']"
+       ]
+      },
+-     "execution_count": 9,
++     "execution_count": 41,
+      "metadata": {},
+      "output_type": "execute_result"
+     }
+@@ -69,146 +83,92 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 15,
+-   "id": "34132bd8",
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "sample1\n",
+-      "sample2\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "Q = {}\n",
+-    "for var in ordered_latent_vars:\n",
+-    "    print(var)\n",
+-    "    Q_key, Q_item = graph[\"P\"][var]\n",
+-    "    Q[var] = Q_item"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 16,
+-   "id": "6a020ce9",
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "{'sample1': ['normal', 0.0, 10.0], 'sample2': ['normal', 0.0, 10.0]}"
+-      ]
+-     },
+-     "execution_count": 16,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "Q"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 17,
+-   "id": "a0d7d235",
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/plain": [
+-       "{'sample1': ['normal', 0.0, 10.0], 'sample2': ['normal', 0.0, 10.0]}"
+-      ]
+-     },
+-     "execution_count": 17,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
+-   "source": [
+-    "{var : graph[\"P\"][var][1] for var in ordered_latent_vars}"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 20,
+-   "id": "72b07bb8",
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "['observe3', 'observe6', 'observe4', 'observe7', 'sample2', 'sample1', 'observe8', 'observe5']\n",
+-      "{'sample2': ['observe3', 'observe6', 'observe4', 'observe7', 'observe8', 'observe5'], 'sample1': ['observe3', 'observe6', 'observe4', 'observe7', 'observe8', 'observe5']}\n",
+-      "{'sample1': ['sample*', ['normal', 0.0, 10.0]], 'sample2': ['sample*', ['normal', 0.0, 10.0]], 'observe3': ['observe*', ['normal', ['+', ['*', 'sample1', 1.0], 'sample2'], 1.0], 2.1], 'observe4': ['observe*', ['normal', ['+', ['*', 'sample1', 2.0], 'sample2'], 1.0], 3.9], 'observe5': ['observe*', ['normal', ['+', ['*', 'sample1', 3.0], 'sample2'], 1.0], 5.3], 'observe6': ['observe*', ['normal', ['+', ['*', 'sample1', 4.0], 'sample2'], 1.0], 7.7], 'observe7': ['observe*', ['normal', ['+', ['*', 'sample1', 5.0], 'sample2'], 1.0], 10.2], 'observe8': ['observe*', ['normal', ['+', ['*', 'sample1', 6.0], 'sample2'], 1.0], 12.9]}\n",
+-      "{'observe3': 2.1, 'observe4': 3.9, 'observe5': 5.3, 'observe6': 7.7, 'observe7': 10.2, 'observe8': 12.9}\n"
+-     ]
+-    }
+-   ],
+-   "source": [
+-    "for key, val in graph.items():\n",
+-    "    print(val)\n"
+-   ]
+-  },
+-  {
+-   "cell_type": "code",
+-   "execution_count": 79,
+-   "id": "ac1deefe",
++   "execution_count": 43,
++   "id": "773fd5ad",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+-    "l2 = copy(l)"
++    "e = standard_env()"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 82,
+-   "id": "333ccef2",
++   "execution_count": 52,
++   "id": "05371de3",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+-    "l2.x = 4"
++    "a = {}.update(zip([\"a\"], [4]))"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 90,
+-   "id": "fcee71f5",
++   "execution_count": 55,
++   "id": "750f51d8",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+-    "l2 = l"
++    "e.update({\"lol\":[102]})"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 91,
+-   "id": "56f513a2",
++   "execution_count": 56,
++   "id": "5b316b50",
+    "metadata": {},
+    "outputs": [
+     {
+      "data": {
+       "text/plain": [
+-       "3"
++       "{'<': <function torch._VariableFunctionsClass.lt>,\n",
++       " '<=': <function torch._VariableFunctionsClass.le>,\n",
++       " 'and': <function primitives._and(first, second)>,\n",
++       " 'or': <function primitives._or(first, second)>,\n",
++       " '+': <function torch._VariableFunctionsClass.add>,\n",
++       " '-': <function torch._VariableFunctionsClass.sub>,\n",
++       " '*': <function torch._VariableFunctionsClass.mul>,\n",
++       " '/': <function torch._VariableFunctionsClass.div>,\n",
++       " '=': <function primitives.equal(first, second)>,\n",
++       " 'sqrt': <function torch._VariableFunctionsClass.sqrt>,\n",
++       " 'vector': <function primitives.vector(*x)>,\n",
++       " 'hash-map': <function primitives.hashmap(*x)>,\n",
++       " 'get': <function primitives.get(vec, pos)>,\n",
++       " 'put': <function primitives.put(vec, pos, val)>,\n",
++       " 'first': <function primitives.first(vec)>,\n",
++       " 'second': <function primitives.second(vec)>,\n",
++       " 'last': <function primitives.last(vec)>,\n",
++       " 'append': <function primitives.append(vec, val)>,\n",
++       " 'rest': <function primitives.rest(vec)>,\n",
++       " 'mat-mul': <function torch._VariableFunctionsClass.matmul>,\n",
++       " 'mat-transpose': <function torch._VariableFunctionsClass.t>,\n",
++       " 'mat-tanh': <function torch._VariableFunctionsClass.tanh>,\n",
++       " 'mat-add': <function torch._VariableFunctionsClass.add>,\n",
++       " 'mat-repmat': <function primitives.matrepmat(vecname, val, length)>,\n",
++       " 'normal': torch.distributions.normal.Normal,\n",
++       " 'beta': torch.distributions.beta.Beta,\n",
++       " 'exponential': torch.distributions.exponential.Exponential,\n",
++       " 'uniform-continuous': torch.distributions.uniform.Uniform,\n",
++       " 'discrete': torch.distributions.categorical.Categorical,\n",
++       " 'dirichlet': torch.distributions.dirichlet.Dirichlet,\n",
++       " 'gamma': torch.distributions.gamma.Gamma,\n",
++       " 'flip': torch.distributions.bernoulli.Bernoulli,\n",
++       " 'dirac': primitives.Dirac,\n",
++       " 'lol': [102]}"
+       ]
+      },
+-     "execution_count": 91,
++     "execution_count": 56,
+      "metadata": {},
+      "output_type": "execute_result"
+     }
+    ],
+    "source": [
+-    "l2"
++    "e"
+    ]
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "id": "efad2cdb",
++   "id": "fbc0afad",
+    "metadata": {},
+    "outputs": [],
+    "source": []
+diff --git a/config.yaml b/config.yaml
+index a4bee0d..d08fdcb 100644
+--- a/config.yaml
++++ b/config.yaml
+@@ -22,7 +22,7 @@ compile: False
+ mode: 'graph'
+ 
+ # Inference
+-num_samples: 1e4
++num_samples: 1e3
+ 
+ #Sampling method 
+-sampling_method: 'MH_gibbs'
+\ No newline at end of file
++sampling_method: 'HMC'
+\ No newline at end of file
+diff --git a/primitives.py b/primitives.py
+index 57459d2..f86b9f1 100644
+--- a/primitives.py
++++ b/primitives.py
+@@ -68,12 +68,13 @@ class Dirac():
+     def __init__(self, x0, atol=10e-1):
+         self.x0 = x0
+         self.atol = atol
++        self.inf = 1e10
+ 
+     def log_prob(self, x):
+         if tc.isclose(x, self.x0, rtol=10e-5, atol=self.atol):
+             return tc.tensor(0.0)
+         else : 
+-            return tc.tensor(float('-inf'))
++            return tc.tensor(-self.inf).float()
+ 
+     def sample(self):
+         return self.x0
+diff --git a/run.py b/run.py
+index 3512aca..5283c53 100644
+--- a/run.py
++++ b/run.py
+@@ -16,6 +16,7 @@ from graph_based_sampling import graph
+ from utils import wandb_plots, wandb_plots_homework3
+ from likelihood_weighting import likelihood_weighting
+ from MH_gibbs import MH_gibbs
++from HMC import HMC_sampling
+ 
+ def create_class(ast_or_graph, mode):
+     if mode == 'desugar':
+@@ -145,6 +146,7 @@ def run_all(cfg):
+ 
+             if wandb_run : wandb_plots_homework3(samples, program)
+     
++
+     elif sampling_method=="MH_gibbs":
+ 
+         print("MC within Gibbs sampling : ")
+@@ -161,6 +163,25 @@ def run_all(cfg):
+             if wandb_run : wandb_plots_homework3(samples, program)
+ 
+ 
++    elif sampling_method=="HMC":
++
++        print("HMC sampling : ")
++
++        for program in programs:
++            if program not in [1,2,5]: #programs 3,4 are not differentiable, thus HMC is not applicable
++                continue
++            
++            print("\nProgram {} currently running...".format(program))
++
++            samples = HMC_sampling(program, prog_set=prog_set, num_samples=num_samples) #only runs mode=graph
++            samples = tc.stack(samples).type(tc.float)
++
++            print("Sample mean : {}".format(samples.mean(axis=0)))
++            print("Sample standard deviation : {}".format(samples.std(axis=0)))
++
++            if wandb_run : wandb_plots_homework3(samples, program)
++    
++
+     else :
+         run_programs(programs, mode=mode, prog_set=prog_set, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples, compile=compile, wandb_run=wandb_run, verbose=verbose)
+ 
+diff --git a/wandb/latest-run b/wandb/latest-run
+index ec3ffe3..632b0d8 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20221013_214847-3liarsv4
+\ No newline at end of file
++run-20221016_153106-hncsw4gy
+\ No newline at end of file

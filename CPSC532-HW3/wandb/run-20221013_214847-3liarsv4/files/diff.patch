@@ -1,0 +1,207 @@
+diff --git a/config.yaml b/config.yaml
+index f212e09..a4bee0d 100644
+--- a/config.yaml
++++ b/config.yaml
+@@ -18,11 +18,11 @@ prog_set: 'HW3'
+ compile: False
+ 
+ # Evaluation method
+-mode: 'desugar'
+-#mode: 'graph'
++#mode: 'desugar'
++mode: 'graph'
+ 
+ # Inference
+ num_samples: 1e4
+ 
+ #Sampling method 
+-sampling_method: 'likelihood_weighting'
+\ No newline at end of file
++sampling_method: 'MH_gibbs'
+\ No newline at end of file
+diff --git a/graph_based_sampling.py b/graph_based_sampling.py
+index 6be60d8..eb18c6d 100644
+--- a/graph_based_sampling.py
++++ b/graph_based_sampling.py
+@@ -1,53 +1,29 @@
+ # Standard imports
+ import torch as tc
+-from graphlib import TopologicalSorter # NOTE: This is useful
++from graphlib import TopologicalSorter
+ 
+ # Project imports
+ from evaluation_based_sampling import Eval, standard_env
+-#from primitives import primitives # NOTE: Otherwise you could import and use this again!
+-
+-def flatten(mylist):
+-    '''
+-    Functions to flatten any nested list
+-    '''
+-    newlist = []
+-    
+-    for el in mylist:
+-        if type(el) in [int, float, str]:
+-            newlist.append(el)
+-        else:
+-            newlist+=flatten(el)
+-    
+-    return newlist
+ 
+ 
+ class graph:
+     def __init__(self, graph_json):
+         self.json = graph_json
+-        self.foo, self.Graph, self.program = graph_json
+-        # NOTE: You need to write this!
++        self.Functions, self.Graph, self.Program = graph_json
+ 
+-    def get_DAG(self):
+-        dag = {}
+-        for var in self.Graph["V"]:
+-            dag[var] = self.find_parents(var)
+-        return dag
+-    
+-    def find_parents(self, v):
+-        v_expr = flatten(self.Graph["P"][v])
+-        parents = set()
+-        for v in self.Graph["V"]:
+-            if v in v_expr:
+-                parents.add(v)
+-        return parents
+-    
+     def topological(self):
+-        return list(TopologicalSorter(self.get_DAG()).static_order())
++        order = list(TopologicalSorter(self.Graph["A"]).static_order())
++        order.reverse()
++        if order:
++            return order 
++        else:
++            return self.Graph["V"] #case where there is only one vertex in the graph
++    
+     
+ def evaluate_graph(graph, verbose=False):
+     #initialize global environment and sigma (unnormalized weight)
+     global_env = standard_env()
+-    sigma = 0
++    sigma = {"logW":tc.tensor(0.0)}
+ 
+     #append functions to global environment
+     for key in graph.topological():
+@@ -55,6 +31,6 @@ def evaluate_graph(graph, verbose=False):
+         global_env[key], _ = Eval(expr, sigma, global_env)
+ 
+     #evalute the program
+-    e, sigma = Eval(graph.program, sigma, global_env)
++    e, sigma = Eval(graph.Program, sigma, global_env)
+ 
+     return e, sigma, global_env
+\ No newline at end of file
+diff --git a/likelihood_weighting.py b/likelihood_weighting.py
+index 6337326..dfb3fa8 100644
+--- a/likelihood_weighting.py
++++ b/likelihood_weighting.py
+@@ -2,27 +2,35 @@ import json
+ import numpy as np
+ import torch as tc
+ from evaluation_based_sampling import abstract_syntax_tree
+-from evaluation_based_sampling import evaluate_program
+-
+-
+-def likelihood_weighting(program, prog_set="HW3", num_samples=int(1e3), verbose=False):
++from graph_based_sampling import graph
++from general_sampling import get_sample
++
++def create_class(ast_or_graph, mode):
++    if mode == 'desugar':
++        return abstract_syntax_tree(ast_or_graph)
++    elif mode == 'graph':
++        return graph(ast_or_graph)
++    else:
++        raise ValueError('Input type not recognised')
++
++def likelihood_weighting(program, mode, prog_set="HW3", num_samples=int(1e3), verbose=False):
+         '''
+         params
+         -------
+         program : int from 1,...,5 (5 programs in HW3)
+         mode : graph or desugar
+         '''
+-        json_prog = './programs/' + prog_set + '/%d_desugar.json'%(program)
++        json_prog = './programs/' + prog_set + '/%d_%s.json'%(program, mode)
+ 
+         with open(json_prog) as f:
+             ast_or_graph = json.load(f)
+         
+-        ast_or_graph = abstract_syntax_tree(ast_or_graph)
++        ast_or_graph = create_class(ast_or_graph, mode)
+ 
+         samples = []
+         log_weights = []
+         for i in range(num_samples):
+-            ret, sig, _ = evaluate_program(ast_or_graph, verbose=verbose)
++            ret, sig = get_sample(ast_or_graph, mode, verbose=verbose)
+             samples.append(ret)
+             log_weights.append(sig["logW"])
+ 
+diff --git a/run.py b/run.py
+index c75b4ef..3512aca 100644
+--- a/run.py
++++ b/run.py
+@@ -15,6 +15,7 @@ from evaluation_based_sampling import abstract_syntax_tree
+ from graph_based_sampling import graph
+ from utils import wandb_plots, wandb_plots_homework3
+ from likelihood_weighting import likelihood_weighting
++from MH_gibbs import MH_gibbs
+ 
+ def create_class(ast_or_graph, mode):
+     if mode == 'desugar':
+@@ -81,7 +82,7 @@ def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int
+         print('Evaluation scheme:', mode)
+         ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
+         ast_or_graph = create_class(ast_or_graph, mode)
+-        samples, _= prior_samples(ast_or_graph, mode, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
++        samples = prior_samples(ast_or_graph, mode, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
+         samples = tc.stack(samples).type(tc.float)
+ 
+         np.savetxt(results_file_samples(i), samples)
+@@ -136,7 +137,7 @@ def run_all(cfg):
+ 
+         for program in programs:
+             print("\nProgram {} currently running...".format(program))
+-            samples = likelihood_weighting(program, prog_set=prog_set, num_samples=num_samples)
++            samples = likelihood_weighting(program, mode=mode, prog_set=prog_set, num_samples=num_samples)
+             samples = tc.stack(samples).type(tc.float)
+ 
+             print("Sample mean : {}".format(samples.mean(axis=0)))
+@@ -144,6 +145,22 @@ def run_all(cfg):
+ 
+             if wandb_run : wandb_plots_homework3(samples, program)
+     
++    elif sampling_method=="MH_gibbs":
++
++        print("MC within Gibbs sampling : ")
++
++        for program in programs:
++            print("\nProgram {} currently running...".format(program))
++
++            samples = MH_gibbs(program, prog_set=prog_set, num_samples=num_samples) #only runs mode=graph
++            samples = tc.stack(samples).type(tc.float)
++
++            print("Sample mean : {}".format(samples.mean(axis=0)))
++            print("Sample standard deviation : {}".format(samples.std(axis=0)))
++
++            if wandb_run : wandb_plots_homework3(samples, program)
++
++
+     else :
+         run_programs(programs, mode=mode, prog_set=prog_set, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples, compile=compile, wandb_run=wandb_run, verbose=verbose)
+ 
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 1ca1cd8..ec3ffe3 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20221012_214838-3gtiaoou
+\ No newline at end of file
++run-20221013_214847-3liarsv4
+\ No newline at end of file

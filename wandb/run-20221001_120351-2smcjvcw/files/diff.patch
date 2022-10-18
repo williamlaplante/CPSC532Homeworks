@@ -1,0 +1,16 @@
+diff --git a/CS532-HW2/config.yaml b/CS532-HW2/config.yaml
+index 33ebb36..c9ebe2a 100644
+--- a/CS532-HW2/config.yaml
++++ b/CS532-HW2/config.yaml
+@@ -14,8 +14,8 @@ HW2_programs: [1, 2, 3, 4]
+ compile: False
+ 
+ # Evaluation method
+-#mode: 'desugar'
+-mode: 'graph'
++mode: 'desugar'
++#mode: 'graph'
+ 
+ # Inference
+ num_samples: 1e3
+\ No newline at end of file

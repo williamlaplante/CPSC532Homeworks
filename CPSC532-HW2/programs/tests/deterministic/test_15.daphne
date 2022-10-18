@@ -1,0 +1,4 @@
+(defn square [var]
+  (* var var)
+ )
+ (+ (square 2.) 1.)
