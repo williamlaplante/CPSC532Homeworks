@@ -7,9 +7,9 @@ base_dir: '../CPSC532-HW3' # NOTE: This path should be relative to the daphne pa
 daphne_dir: '../../daphne' # NOTE: This path should be relative to the homework directory!
 
 # Tests and programs to run
-deterministic_tests: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
-probabilistic_tests: [1, 2, 3, 4, 5, 6, 7, 8]
-HW3_programs: [1, 2, 3, 4, 5]
+deterministic_tests: []
+probabilistic_tests: []
+HW3_programs: [1,2,3,4,5]
 
 #which HW to run
 prog_set: 'HW3'
@@ -22,7 +22,7 @@ compile: False
 mode: 'graph'
 
 # Inference
-num_samples: 5e3
+num_samples: 8e3
 
 #Sampling method 
-sampling_method: 'MH_gibbs'
+sampling_method: 'likelihood_weighting'

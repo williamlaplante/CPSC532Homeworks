@@ -1,0 +1,17 @@
+wandb_run: true
+entity: cs532-2022
+base_dir: ../CPSC532-HW3
+daphne_dir: ../../daphne
+deterministic_tests: []
+probabilistic_tests: []
+HW3_programs:
+- 1
+- 2
+- 3
+- 4
+- 5
+prog_set: HW3
+compile: false
+mode: graph
+num_samples: 5000.0
+sampling_method: likelihood_weighting
