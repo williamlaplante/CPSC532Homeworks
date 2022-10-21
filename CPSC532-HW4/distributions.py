@@ -224,7 +224,7 @@ if __name__ == '__main__':
         # NOTE: Must detach part of the calculation here!
         ELBO_loss = -(log_Q*(log_W.detach())).mean()
         ELBO_loss.backward()
-
+        print("ELBO loss" + str(ELBO_loss.clone().detach()))
         # Step with the optimizer
         optimizer.step()
         print('Q:', Q)

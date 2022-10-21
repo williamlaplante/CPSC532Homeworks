@@ -1,11 +1,12 @@
 # Standard imports
-from tabnanny import verbose
 import numpy as np
 import torch as tc
 from time import time
 import wandb
 import hydra
 import matplotlib.pyplot as plt
+plt.ioff() #Turn interactive mode off to prevent live plotting -> want to see plots in results folder
+
 
 # Project imports
 from daphne import load_program
@@ -130,7 +131,9 @@ def run_all(cfg):
     if bbvi:
         for program in programs:
             print("\nRunning BBVI on program {}...\n".format(program))
-            results, loss = BBVI(program)
+            Q, results, loss = BBVI(program)
+
+            print("The resulting approximating distribution is : {}".format(Q))
 
             np.savetxt("./results/loss_%d.dat"%(program), loss)
 

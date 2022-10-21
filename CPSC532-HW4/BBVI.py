@@ -6,7 +6,7 @@ import itertools
 from graph_based_sampling import standard_env, graph, evaluate_graph
 from evaluation_based_sampling import Eval
 from utils import log_sample
-import distributions
+from distributions import Normal
 
 def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
     
@@ -23,11 +23,21 @@ def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
 
     for y in observed: #compute the log likelihood
         d, _ = Eval(g.Graph["P"][y][1], {"logW" : tc.tensor(0.0)}, env) #evaluate the dist of y
-        log_likelihood += d.log_prob(tc.tensor(g.Graph["Y"][y]).float()) #compute the likelihood log prob given the above sample
+        log_lik = d.log_prob(tc.tensor(g.Graph["Y"][y]).float()) #compute the likelihood log prob given the above sample
+        
+        if log_lik >= tc.tensor(0.0):
+             raise Exception("Log Likelihood has value {} >= 0".format(log_lik))
+        else:
+            log_likelihood += log_lik
 
     for x in latent: #compute the log prior
         d, _ = Eval(g.Graph["P"][x][1], {"logW":tc.tensor(0.0)}, env) #evaluate the dist of x
-        log_prior += d.log_prob(X[x]) #compute the prior log prob of the above sample 
+        log_p = d.log_prob(X[x])
+
+        if log_p >= tc.tensor(0.0):
+            raise Exception("Log Prior has value {} >= 0".format(log_p))
+        else:
+            log_prior += log_p #compute the prior log prob of the above sample 
 
     log_P = log_likelihood+log_prior #compute the unormalized joint
     
@@ -48,7 +58,7 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     ordered_latent_vars = [var for var in ordered_vars if var not in g.Graph["Y"].keys()]
 
     # Q distribution : mean field of N(0,1)
-    Q = {x : distributions.Normal(tc.tensor(0.0), tc.tensor(1.0)) for x in ordered_latent_vars}
+    Q = {x : Normal(tc.tensor(0.0), tc.tensor(1.0)) for x in ordered_latent_vars}
 
     ### Variational inference ###
 
@@ -90,5 +100,7 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     
 
     loss = tc.stack(loss).float()
-    
-    return results, loss
+
+
+
+    return Q, results, loss
