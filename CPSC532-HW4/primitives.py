@@ -1,5 +1,6 @@
 import torch as tc
 
+
 def _and(first, second):
     if first and second:
         return tc.tensor([True])
@@ -98,6 +99,7 @@ primitives = {
     '/': tc.div,
     '=': equal,
     'sqrt': tc.sqrt,
+    'abs': tc.abs,
 
 
     # Containers
@@ -122,7 +124,7 @@ primitives = {
 
     # Distributions
     'normal': tc.distributions.Normal,
-    'beta': tc.distributions.beta.Beta,
+    'beta': tc.distributions.Beta,
     'exponential': tc.distributions.Exponential,
     'uniform-continuous': tc.distributions.Uniform,
     'discrete' : tc.distributions.Categorical,

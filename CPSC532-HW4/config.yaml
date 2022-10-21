@@ -1,0 +1,28 @@
+# Weights and biases
+wandb_run: False
+entity : "williamlaplante" #to post results -> 'cs532-2022', to analyze your own stuff -> 'williamlaplante'
+
+# Directory structure
+#CPSC532Homeworks
+base_dir: '../CPSC532Homeworks/CPSC532-HW4' # NOTE: This path should be relative to the daphne path!
+daphne_dir: '../../daphne' # NOTE: This path should be relative to the homework directory!
+
+# Tests and programs to run
+deterministic_tests: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,15,16,17,18,19,20]
+probabilistic_tests: [1,2,3,4,5,6,7,8]
+HW4_programs: [1,2,3,4,5]
+
+#which HW to run
+prog_set: 'HW4'
+
+# Daphne (re)compilation
+compile: False
+
+# Evaluation method
+#mode: 'desugar'
+mode: 'graph'
+
+# Inference
+num_samples: 1e3
+
+BBVI : True

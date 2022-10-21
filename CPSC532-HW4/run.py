@@ -1,11 +1,11 @@
 # Standard imports
-from email.mime import base
 from tabnanny import verbose
 import numpy as np
 import torch as tc
 from time import time
 import wandb
 import hydra
+import matplotlib.pyplot as plt
 
 # Project imports
 from daphne import load_program
@@ -14,9 +14,8 @@ from general_sampling import get_sample, prior_samples
 from evaluation_based_sampling import abstract_syntax_tree
 from graph_based_sampling import graph
 from utils import wandb_plots, wandb_plots_homework3
-from likelihood_weighting import likelihood_weighting
-from MH_gibbs import MH_gibbs
-from HMC import HMC_sampling
+from BBVI import BBVI
+
 
 def create_class(ast_or_graph, mode):
     if mode == 'desugar':
@@ -31,8 +30,8 @@ def run_tests(tests, mode, test_type, base_dir, daphne_dir, num_samples=int(1e4)
     # File paths
     test_dir = base_dir+'/programs/tests/'+test_type+'/'
     daphne_test = lambda i: test_dir+'test_%d.daphne'%(i)
-    json_test = lambda i: test_dir+'test_%d_%s.json'%(i, mode)
-    truth_file = lambda i: test_dir+'test_%d.truth'%(i)
+    json_test = lambda i: "./programs/tests/" + test_type + '/test_%d_%s.json'%(i, mode)
+    truth_file = lambda i: './programs/tests/' + test_type + '/test_%d.truth'%(i)
 
     # Loop over tests
     print('Running '+test_type+' tests')
@@ -66,11 +65,9 @@ def run_tests(tests, mode, test_type, base_dir, daphne_dir, num_samples=int(1e4)
 def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int(1e3), tmax=None, compile=False, wandb_run=False, verbose=False):
 
     # File paths
-    prog_dir = base_dir+'/programs/'+prog_set+'/'
+    prog_dir = base_dir + '/programs/'+prog_set+'/'
     daphne_prog = lambda i: prog_dir+'%d.daphne'%(i)
-    json_prog = lambda i: prog_dir+'%d_%s.json'%(i, mode)
-    results_file_samples = lambda i: 'data/%s/%d_%s_samples.dat'%(prog_set, i, mode)
-    results_file_weights = lambda i: 'data/%s/%d_%s_weights.dat'%(prog_set, i, mode)
+    json_prog = lambda i: "./programs/HW4/"+'%d_%s.json'%( i, mode)
 
     for i in programs:
         
@@ -85,8 +82,6 @@ def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int
         ast_or_graph = create_class(ast_or_graph, mode)
         samples = prior_samples(ast_or_graph, mode, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
         samples = tc.stack(samples).type(tc.float)
-
-        np.savetxt(results_file_samples(i), samples)
 
         # Calculate some properties of the data
         print('Samples shape:', samples.shape)
@@ -115,8 +110,8 @@ def run_all(cfg):
     base_dir = cfg['base_dir']
     daphne_dir = cfg['daphne_dir']
     prog_set = cfg["prog_set"]
-    sampling_method = cfg["sampling_method"]
     entity = cfg["entity"]
+    bbvi = cfg["BBVI"]
 
     # Initialize W&B
     if wandb_run: wandb.init(project=prog_set +'-'+mode, entity=entity)
@@ -132,94 +127,19 @@ def run_all(cfg):
     # Programs
     programs = cfg[prog_set + '_programs']
 
-    if sampling_method=="likelihood_weighting":
-
-        print("Likelihood weighting sampling : ")
-
+    if bbvi:
         for program in programs:
-            print("\nProgram {} currently running...".format(program))
+            print("\nRunning BBVI on program {}...\n".format(program))
+            results, loss = BBVI(program)
 
-            if wandb_run : 
-                wandb_name = 'Program %s samples - %s'%(program, sampling_method)
-            else:
-                wandb_name = None
+            np.savetxt("./results/loss_%d.dat"%(program), loss)
 
-            samples = likelihood_weighting(program, mode=mode, prog_set=prog_set, num_samples=num_samples, wandb_name=wandb_name)
-            samples = tc.stack(samples).type(tc.float)
-
-            print("Sample mean : {}".format(samples.mean(axis=0)))
-
-            if samples.ndim == 1:
-                print("Sample covariance : {}".format(samples.cov()))
-            else : 
-                print("Sample covariance matrix : {}".format(samples.T.cov()))
-   
-
-            if wandb_run : wandb_plots_homework3(samples, program)
-
-            np.savetxt("./data/HW3/%s/samples_program_%d_%s.dat"%(sampling_method, program, mode), samples)
-
-    
-
-    elif sampling_method=="MH_gibbs":
-
-        print("MC within Gibbs sampling : ")
-
-        for program in programs:
-            print("\nProgram {} currently running...".format(program))
-
-            if wandb_run : 
-                wandb_name = 'Program %s samples - %s'%(program, sampling_method)
-            else:
-                wandb_name = None
-
-            samples = MH_gibbs(program, prog_set=prog_set, num_samples=num_samples, wandb_name=wandb_name) #only runs mode=graph
-            samples = tc.stack(samples).type(tc.float)
-
-            print("Sample mean : {}".format(samples.mean(axis=0)))
-
-            if samples.ndim == 1:
-                print("Sample covariance : {}".format(samples.cov()))
-            else : 
-                print("Sample covariance matrix : {}".format(samples.T.cov()))
-
-            if wandb_run : wandb_plots_homework3(samples, program)
-
-            np.savetxt("./data/HW3/%s/samples_program_%d_%s.dat"%(sampling_method, program, mode), samples)
+            fig = plt.figure(figsize=(8,4))
+            plt.plot(loss)
+            fig.savefig("./results/loss_%d_plot.png"%(program))
 
 
-    elif sampling_method=="HMC":
-
-        print("HMC sampling : ")
-
-        for program in programs:
-            if program not in [1,2,5]: #programs 3,4 are not differentiable, thus HMC is not applicable
-                continue
-
-            if wandb_run : 
-                wandb_name = 'Program %s samples - %s'%(program, sampling_method)
-            else:
-                wandb_name = None
-            
-            print("\nProgram {} currently running...".format(program))
-
-            samples = HMC_sampling(program, prog_set=prog_set, num_samples=num_samples, wandb_name=wandb_name) #only runs mode=graph
-            samples = tc.stack(samples).type(tc.float)
-
-            print("Sample mean : {}".format(samples.mean(axis=0)))
-
-            if samples.ndim == 1:
-                print("Sample covariance : {}".format(samples.cov()))
-            else : 
-                print("Sample covariance matrix : {}".format(samples.T.cov()))
-
-            if wandb_run : wandb_plots_homework3(samples, program)
-
-            #np.savetxt("./data/HW3/%s/samples_program_%d_%s.dat"%(sampling_method, program, mode), samples)
-
-    
-
-    else :
+    else:
         run_programs(programs, mode=mode, prog_set=prog_set, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples, compile=compile, wandb_run=wandb_run, verbose=verbose)
 
     # Finalize W&B
