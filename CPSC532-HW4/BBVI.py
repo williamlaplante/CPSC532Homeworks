@@ -58,7 +58,11 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     ordered_latent_vars = [var for var in ordered_vars if var not in g.Graph["Y"].keys()]
 
     # Q distribution : mean field of N(0,1)
-    Q = {x : Normal(tc.tensor(0.0), tc.tensor(1.0)) for x in ordered_latent_vars}
+    Q = {}
+    for x in ordered_latent_vars:
+        dist = g.Graph["P"][x][1][0]
+        if dist == "normal": Q[x] = Normal(loc=tc.tensor(0.0), scale=tc.tensor(1.0))
+        else : raise Exception("{} not in the list of distributions.".format(dist))
 
     ### Variational inference ###
 
