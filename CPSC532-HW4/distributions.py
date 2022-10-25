@@ -32,6 +32,35 @@ class Normal(tc.distributions.Normal):
         self.scale = positive_function(self.optim_scale) # Needed to carry the gradient through
         return super().log_prob(x)
 
+class HalfUniform(tc.distributions.Uniform):
+    def __init__(self, fixed_low, high):
+        self.fixed_low = fixed_low
+        super().__init__(low = fixed_low, high = high)
+    
+    def params(self):
+        return [self.fixed_low, self.high]
+
+    def optim_params(self):
+        return [self.fixed_low, self.high.requires_grad_()]
+    
+    def log_prob(self, x):
+        return super().log_prob(x)
+
+        
+class Uniform(tc.distributions.Uniform):
+    
+    def __init__(self, low, high): # Define an optimizable scale that exists on the entire real line    
+        super().__init__(low, high)
+
+    def params(self): # Return a list of standard parameters of the distribution
+        return [self.low, self.high]
+
+    def optim_params(self): # Return a list of (optimizeable) parameters of the distribution
+        return [self.low.requires_grad_(), self.high.requires_grad_()]
+
+    def log_prob(self, x): # This overwrites the default log_prob function and updates scale
+        return super().log_prob(x)
+
 
 class Gamma(tc.distributions.Gamma):
     
@@ -145,6 +174,8 @@ class Categorical(tc.distributions.Categorical):
 
     def optim_params(self):
         return [self.logits.requires_grad_()]
+
+
 
 
 if __name__ == '__main__':

@@ -114,6 +114,7 @@ def run_all(cfg):
     prog_set = cfg["prog_set"]
     entity = cfg["entity"]
     bbvi = cfg["BBVI"]
+    save = cfg["save"]
 
     # Initialize W&B
     if wandb_run: wandb.init(project=prog_set +'-'+mode, entity=entity)
@@ -135,16 +136,19 @@ def run_all(cfg):
             Q, results, loss = BBVI(program)
 
             print("The resulting approximating distribution is : {}".format(Q))
-
-            with open("./results/Q_%d.pkl"%(program), 'wb') as f:
-                pickle.dump(Q, f)
             
-            np.savetxt("./results/loss_%d.dat"%(program), loss)
+            if save : 
+                with open("./results/Q_%d.pkl"%(program), 'wb') as f:
+                    pickle.dump(Q, f)
 
+                with open("./results/params_%d.pkl"%(program), 'wb') as f:
+                    pickle.dump(results, f)
 
-            fig = plt.figure(figsize=(8,4))
-            plt.plot(loss)
-            fig.savefig("./results/loss_%d_plot.png"%(program))
+                np.savetxt("./results/loss_%d.dat"%(program), loss)
+
+                fig = plt.figure(figsize=(8,4))
+                plt.plot(loss)
+                fig.savefig("./results/loss_%d_plot.png"%(program))
 
 
 
