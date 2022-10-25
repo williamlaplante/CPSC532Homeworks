@@ -101,7 +101,7 @@ class Dirichlet(tc.distributions.Dirichlet):
 
     def log_prob(self, x):
         self.concentration = positive_function(self.optim_concentration)
-        return super().log_prob(x)
+        return -1/(super().log_prob(x).exp())
 
 
 class Bernoulli(tc.distributions.Bernoulli):

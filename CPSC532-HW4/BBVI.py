@@ -6,7 +6,7 @@ import itertools
 from graph_based_sampling import standard_env, graph, evaluate_graph
 from evaluation_based_sampling import Eval
 from utils import log_sample
-from distributions import Normal
+from distributions import Normal, Dirichlet, Gamma, Categorical
 
 def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
     
@@ -24,27 +24,19 @@ def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
     for y in observed: #compute the log likelihood
         d, _ = Eval(g.Graph["P"][y][1], {"logW" : tc.tensor(0.0)}, env) #evaluate the dist of y
         log_lik = d.log_prob(tc.tensor(g.Graph["Y"][y]).float()) #compute the likelihood log prob given the above sample
-        
-        if log_lik >= tc.tensor(0.0):
-             raise Exception("Log Likelihood has value {} >= 0".format(log_lik))
-        else:
-            log_likelihood += log_lik
+        log_likelihood += log_lik
 
     for x in latent: #compute the log prior
         d, _ = Eval(g.Graph["P"][x][1], {"logW":tc.tensor(0.0)}, env) #evaluate the dist of x
         log_p = d.log_prob(X[x])
-
-        if log_p >= tc.tensor(0.0):
-            raise Exception("Log Prior has value {} >= 0".format(log_p))
-        else:
-            log_prior += log_p #compute the prior log prob of the above sample 
+        log_prior += log_p #compute the prior log prob of the above sample 
 
     log_P = log_likelihood+log_prior #compute the unormalized joint
     
     return log_P
 
 
-def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learning_rate=1e-1, verbose=False, wandb_name = None):
+def BBVI(program, prog_set="HW4", num_samples_per_step=200, num_steps=200, learning_rate=1e-1, verbose=False, wandb_name = None):
     
     #get the program
     json_prog = './programs/' + prog_set + '/%d_graph.json'%(program)
@@ -62,6 +54,9 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     for x in ordered_latent_vars:
         dist = g.Graph["P"][x][1][0]
         if dist == "normal": Q[x] = Normal(loc=tc.tensor(0.0), scale=tc.tensor(1.0))
+        elif dist == "dirichlet" : Q[x] = Dirichlet(tc.tensor([1., 1., 1.]))
+        elif dist == "gamma" : Q[x] = Gamma(tc.tensor(1.0), tc.tensor(1.0))
+        elif dist == "discrete" : Q[x] = Categorical(tc.tensor([0.3, 0.3, 0.4]))
         else : raise Exception("{} not in the list of distributions.".format(dist))
 
     ### Variational inference ###
@@ -104,7 +99,6 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     
 
     loss = tc.stack(loss).float()
-
 
 
     return Q, results, loss

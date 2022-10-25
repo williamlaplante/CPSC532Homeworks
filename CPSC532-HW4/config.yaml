@@ -26,3 +26,5 @@ mode: 'graph'
 num_samples: 1e3
 
 BBVI : True
+
+save : True

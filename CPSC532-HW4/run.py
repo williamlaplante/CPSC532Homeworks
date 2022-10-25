@@ -5,6 +5,7 @@ from time import time
 import wandb
 import hydra
 import matplotlib.pyplot as plt
+import pickle
 plt.ioff() #Turn interactive mode off to prevent live plotting -> want to see plots in results folder
 
 
@@ -135,11 +136,16 @@ def run_all(cfg):
 
             print("The resulting approximating distribution is : {}".format(Q))
 
+            with open("./results/Q_%d.pkl"%(program), 'wb') as f:
+                pickle.dump(Q, f)
+            
             np.savetxt("./results/loss_%d.dat"%(program), loss)
+
 
             fig = plt.figure(figsize=(8,4))
             plt.plot(loss)
             fig.savefig("./results/loss_%d_plot.png"%(program))
+
 
 
     else:
