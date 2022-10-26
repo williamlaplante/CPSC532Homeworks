@@ -39,7 +39,7 @@ def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
     return log_P
 
 
-def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learning_rate=2e-1, verbose=False, wandb_name = None):
+def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learning_rate=1e-1, verbose=False, wandb_name = None):
     
     #get the program
     json_prog = './programs/' + prog_set + '/%d_graph.json'%(program)
@@ -79,7 +79,7 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
         log_Q = []
         log_P = []
 
-        while num_samples != num_samples_per_step: #pseudo-rejection sampling; if can't evaluate joint because of domain problems, re-sample
+        while num_samples != num_samples_per_step: 
             Q_sample = {x : Q[x].sample() for x in Q.keys()}
             
             try:

@@ -10,7 +10,7 @@ daphne_dir: '../../daphne' # NOTE: This path should be relative to the homework 
 # Tests and programs to run
 deterministic_tests: []
 probabilistic_tests: []
-HW4_programs: [5]
+HW4_programs: [4]
 
 #which HW to run
 prog_set: 'HW4'
@@ -27,4 +27,4 @@ num_samples: 1e3
 
 BBVI : True
 
-save : False
+save : True
