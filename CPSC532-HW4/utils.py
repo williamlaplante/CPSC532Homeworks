@@ -107,7 +107,7 @@ def inverse_softplus(s, beta=1., threshold=20.):
     return x
 
 
-def log_params(variationals: list, i: int, wandb_name: str) -> None: 
+def log_params(variationals: list, i: int, program:int, wandb_name: str) -> None: 
     '''
     Log a set of variational-distribution parameters to W&B
     @params
@@ -115,7 +115,7 @@ def log_params(variationals: list, i: int, wandb_name: str) -> None:
         i: integer corresponding to epcoh
         wandb_name: string name of W&B run
     '''
-    wandb_name_here = wandb_name+' params'
+    wandb_name_here = wandb_name+'program {} params'.format(program)
     samples_dict = {wandb_name_here+'; epoch': i}
     for node, distribution in variationals.items():
         params = [p.clone().detach().numpy() for p in distribution.params()]
@@ -124,7 +124,7 @@ def log_params(variationals: list, i: int, wandb_name: str) -> None:
     wandb.log(samples_dict)
 
 
-def log_loss(losses: dict, i: int, wandb_name: str) -> None:
+def log_loss(loss: dict, i: int, program, wandb_name: str) -> None:
     '''
     Log a set of losses corresponding to each node to W&B
     @params
@@ -132,10 +132,9 @@ def log_loss(losses: dict, i: int, wandb_name: str) -> None:
         i: integer corresponding to epcoh
         wandb_name: string name of W&B run
     '''
-    wandb_name_here = wandb_name+' loss'
+    wandb_name_here = wandb_name+' loss; program ' + str(program)
     wandb_dict = {wandb_name_here+'; epoch': i}
-    for node, loss in losses.items():
-        wandb_dict[wandb_name_here+'; '+node] = loss
+    wandb_dict[wandb_name_here+';'] = loss
     wandb.log(wandb_dict)
 
 def wandb_plots_homework4(samples, program):

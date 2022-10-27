@@ -6,7 +6,7 @@ import itertools
 
 from graph_based_sampling import standard_env, graph, evaluate_graph
 from evaluation_based_sampling import Eval
-from utils import log_sample
+from utils import log_sample, log_params, log_loss
 from distributions import Normal, Dirichlet, Gamma, Categorical, Uniform, HalfUniform
 
 def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
@@ -39,7 +39,7 @@ def log_joint(X : dict, Y : dict, g : graph)->tc.tensor:
     return log_P
 
 
-def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learning_rate=1e-1, verbose=False, wandb_name = None):
+def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=800, learning_rate=3e-1, verbose=False, wandb_name = None, wandb_run=False):
     
     #get the program
     json_prog = './programs/' + prog_set + '/%d_graph.json'%(program)
@@ -56,7 +56,7 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
     Q = {}
     for x in ordered_latent_vars:
         dist = g.Graph["P"][x][1][0]
-        if dist == "normal": Q[x] = Normal(loc=tc.tensor(0.0), scale=tc.tensor(1.0))
+        if dist == "normal": Q[x] = Normal(loc=tc.tensor(0.0), scale=tc.tensor(10.0))
         elif dist == "dirichlet" : Q[x] = Dirichlet(tc.tensor([1., 1., 1.]))
         elif dist == "gamma" : Q[x] = Gamma(tc.tensor(1.0), tc.tensor(1.0))
         elif dist == "discrete" : Q[x] = Categorical(tc.tensor([0.3, 0.3, 0.4]))
@@ -122,6 +122,12 @@ def BBVI(program, prog_set="HW4", num_samples_per_step=100, num_steps=300, learn
 
         results[i] = {x : [p.clone().detach() for p in Q[x].params()] for x in Q.keys()}
         loss.append(ELBO_loss.clone().detach())
+
+        if wandb_run:
+            log_params(Q, i, program, wandb_name=wandb_name)
+            log_loss(ELBO_loss.clone().detach(), i, program=program, wandb_name=wandb_name)
+
+
     
 
     loss = tc.stack(loss).float()

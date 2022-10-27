@@ -1,6 +1,6 @@
 # Weights and biases
-wandb_run: False
-entity : "williamlaplante" #to post results -> 'cs532-2022', to analyze your own stuff -> 'williamlaplante'
+wandb_run: True
+entity : "cs532-2022" #to post results -> 'cs532-2022', to analyze your own stuff -> 'williamlaplante'
 
 # Directory structure
 #CPSC532Homeworks
@@ -23,8 +23,8 @@ compile: False
 mode: 'graph'
 
 # Inference
-num_samples: 1e3
+num_samples: 1e4
 
 BBVI : True
 
-save : True
+save : False
