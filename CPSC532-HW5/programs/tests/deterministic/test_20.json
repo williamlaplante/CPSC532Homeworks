@@ -1,0 +1,35 @@
+[
+    "fn",
+    [
+        "alpha"
+    ],
+    [
+        "mat-transpose",
+        [
+            "push-address",
+            "alpha",
+            "addr0"
+        ],
+        [
+            "vector",
+            [
+                "push-address",
+                "alpha",
+                "addr1"
+            ],
+            [
+                "vector",
+                [
+                    "push-address",
+                    "alpha",
+                    "addr2"
+                ],
+                1,
+                2,
+                3,
+                4,
+                5
+            ]
+        ]
+    ]
+]

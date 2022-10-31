@@ -1,0 +1,16 @@
+[
+    "fn",
+    [
+        "alpha"
+    ],
+    [
+        "vector",
+        [
+            "push-address",
+            "alpha",
+            "addr0"
+        ],
+        true,
+        false
+    ]
+]

@@ -50,8 +50,55 @@ def eval(e, sig:dict, env:Env, verbose=False):
         sig: side-effects
         env: environment
     '''
-    # NOTE: Write me
-    return None
+
+    if isinstance(e, bool):
+        return tc.tensor(int(e)).float()
+    
+    elif isinstance(e, float) or isinstance(e,int): #case : constant
+        return tc.tensor(e).float()
+    
+    elif isinstance(e, str): #case : variable or procedure (anything in the env)
+        try :
+            return env.find(e)[e]
+        except:
+            return e
+            
+    op, *args = e
+    
+    if op == 'sample' or op=="sample*":
+        d = eval(e[1], sig, env)
+        return d.sample(), sig
+    
+    elif op == 'observe' or op=="observe*":
+        dist, sig = eval(args[0], sig, env)
+        val, sig = eval(args[1], sig, env)
+        sig["logW"] += dist.log_prob(val)
+        return val, sig
+
+    elif op == 'if': # conditional
+        (test, conseq, alt) = args
+        exp = (conseq if eval(test, sig, env) else alt)
+        return eval(exp, sig, env)
+    
+    elif op == 'fn':         # procedure
+        (params, body) = args
+        return Procedure(params=params, body=body, sig=sig, env=env)
+    
+    else:                        # procedure call
+        proc = eval(op, sig, env)
+
+        vals = []
+        
+        for arg in args:
+            val = eval(arg, sig, env)
+            vals.append(val)
+        
+        if callable(proc):
+            return proc(*vals)
+        else:
+            raise Exception("{} is not callable.".format(proc))
+
+
 
 
 def evaluate(ast:dict, verbose=False):
@@ -61,7 +108,7 @@ def evaluate(ast:dict, verbose=False):
         ast: abstract syntax tree
     Returns: The return value of the program
     '''
-    sig = {}; env = standard_env()
+    sig = {"logW" : tc.tensor(0.0)}; env = standard_env()
     exp = eval(ast, sig, env, verbose)(run_name) # NOTE: Must run as function with *any* argument
     return exp
 
