@@ -1,0 +1,24 @@
+[
+    "fn",
+    [
+        "alpha"
+    ],
+    [
+        "sample",
+        [
+            "push-address",
+            "alpha",
+            "addr0"
+        ],
+        [
+            "beta",
+            [
+                "push-address",
+                "alpha",
+                "addr1"
+            ],
+            2,
+            5
+        ]
+    ]
+]

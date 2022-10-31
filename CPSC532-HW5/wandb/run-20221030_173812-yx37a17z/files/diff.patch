@@ -1,0 +1,83 @@
+diff --git a/CPSC532-HW5/config.yaml b/CPSC532-HW5/config.yaml
+index 5eb244a..215399a 100644
+--- a/CPSC532-HW5/config.yaml
++++ b/CPSC532-HW5/config.yaml
+@@ -1,5 +1,5 @@
+ # W&B
+-wandb_run: False
++wandb_run: True
+ 
+ # Random seed
+ seed: None
+diff --git a/CPSC532-HW5/evaluator.py b/CPSC532-HW5/evaluator.py
+index f74d7d7..f2af966 100644
+--- a/CPSC532-HW5/evaluator.py
++++ b/CPSC532-HW5/evaluator.py
+@@ -20,7 +20,7 @@ class Env(dict):
+             result = self
+         else:
+             if self.outer is None:
+-                print('Not found in any environment:', var)
++                # print('Not found in any environment:', var)
+                 raise ValueError('Outer limit of environment reached')
+             else:
+                 result = self.outer.find(var)
+@@ -66,12 +66,12 @@ def eval(e, sig:dict, env:Env, verbose=False):
+     op, *args = e
+     
+     if op == 'sample' or op=="sample*":
+-        d = eval(e[1], sig, env)
+-        return d.sample(), sig
++        d = eval(e[2], sig, env)
++        return d.sample()
+     
+     elif op == 'observe' or op=="observe*":
+-        dist, sig = eval(args[0], sig, env)
+-        val, sig = eval(args[1], sig, env)
++        dist = eval(args[1], sig, env)
++        val = eval(args[2], sig, env)
+         sig["logW"] += dist.log_prob(val)
+         return val, sig
+ 
+diff --git a/CPSC532-HW5/primitives.py b/CPSC532-HW5/primitives.py
+index 8c3d993..43e20e4 100644
+--- a/CPSC532-HW5/primitives.py
++++ b/CPSC532-HW5/primitives.py
+@@ -37,6 +37,8 @@ def put(vec, pos, val):
+     else:
+         return vec.set(pos, val)
+ 
++def peek(vec):
++    return vec[0]
+ 
+ def first(vec):
+     return vec[0]
+@@ -108,6 +110,7 @@ primitives = {
+     'sqrt': lambda *x: tc.sqrt(*x[1:]),
+     '*': lambda *x: tc.multiply(*x[1:]),
+     '/': lambda *x: tc.div(*x[1:]),
++    'log': lambda *x: tc.log(*x[1:]),
+ 
+     # Containers
+     'vector': lambda *x: vector(*x[1:]),
+@@ -121,6 +124,7 @@ primitives = {
+     'append': lambda *x: append(*x[1:]),
+     'empty?': lambda *x: isempty(*x[1:]),
+     'conj': lambda *x: conj(*x[1:]),
++    'peek': lambda *x: peek(*x[1:]),
+ 
+ 
+     # Matrices
+@@ -128,5 +132,11 @@ primitives = {
+ 
+     # Distributions
+     'normal': lambda *x: tc.distributions.Normal(*x[1:]),
++    'beta': lambda *x: tc.distributions.Beta(*x[1:]),
++    'exponential': lambda *x: tc.distributions.Exponential(*x[1:]),
++    'uniform-continuous': lambda *x: tc.distributions.Uniform(*x[1:]),
++    'flip': lambda *x: tc.distributions.Bernoulli(*x[1:]),
++    'discrete': lambda *x: tc.distributions.Categorical(*x[1:]),
++
+ 
+ }
+\ No newline at end of file

@@ -1,5 +1,5 @@
 # W&B
-wandb_run: False
+wandb_run: True
 
 # Random seed
 seed: None

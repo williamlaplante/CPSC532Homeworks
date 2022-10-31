@@ -37,6 +37,8 @@ def put(vec, pos, val):
     else:
         return vec.set(pos, val)
 
+def peek(vec):
+    return vec[0]
 
 def first(vec):
     return vec[0]
@@ -108,6 +110,7 @@ primitives = {
     'sqrt': lambda *x: tc.sqrt(*x[1:]),
     '*': lambda *x: tc.multiply(*x[1:]),
     '/': lambda *x: tc.div(*x[1:]),
+    'log': lambda *x: tc.log(*x[1:]),
 
     # Containers
     'vector': lambda *x: vector(*x[1:]),
@@ -121,6 +124,7 @@ primitives = {
     'append': lambda *x: append(*x[1:]),
     'empty?': lambda *x: isempty(*x[1:]),
     'conj': lambda *x: conj(*x[1:]),
+    'peek': lambda *x: peek(*x[1:]),
 
 
     # Matrices
@@ -128,5 +132,11 @@ primitives = {
 
     # Distributions
     'normal': lambda *x: tc.distributions.Normal(*x[1:]),
+    'beta': lambda *x: tc.distributions.Beta(*x[1:]),
+    'exponential': lambda *x: tc.distributions.Exponential(*x[1:]),
+    'uniform-continuous': lambda *x: tc.distributions.Uniform(*x[1:]),
+    'flip': lambda *x: tc.distributions.Bernoulli(*x[1:]),
+    'discrete': lambda *x: tc.distributions.Categorical(*x[1:]),
+
 
 }

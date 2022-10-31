@@ -20,7 +20,7 @@ class Env(dict):
             result = self
         else:
             if self.outer is None:
-                print('Not found in any environment:', var)
+                # print('Not found in any environment:', var)
                 raise ValueError('Outer limit of environment reached')
             else:
                 result = self.outer.find(var)
@@ -66,12 +66,12 @@ def eval(e, sig:dict, env:Env, verbose=False):
     op, *args = e
     
     if op == 'sample' or op=="sample*":
-        d = eval(e[1], sig, env)
-        return d.sample(), sig
+        d = eval(e[2], sig, env)
+        return d.sample()
     
     elif op == 'observe' or op=="observe*":
-        dist, sig = eval(args[0], sig, env)
-        val, sig = eval(args[1], sig, env)
+        dist = eval(args[1], sig, env)
+        val = eval(args[2], sig, env)
         sig["logW"] += dist.log_prob(val)
         return val, sig
 
