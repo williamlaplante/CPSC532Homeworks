@@ -3,39 +3,42 @@ import torch as tc
 from pyrsistent import pmap, pvector
 
 def isempty(vec):
-    if tc.is_tensor(vec):
+    if tc.is_tensor(vec): #check length of tensor
         return (vec.numel()==0)
-    else:
+    else: #check length of pvector or hashmap
         return (len(vec)==0)
 
 def get(vec, pos):
-    if tc.is_tensor(pos):
-        return vec[int(pos.item())]
-    elif isinstance(pos, float) or isinstance(pos, int):
+    if tc.is_tensor(pos): #if position is tensor (numeric)
+        return vec[int(pos.item())] #
+    elif isinstance(pos, float) or isinstance(pos, int): #if position is numeric
         return vec[int(pos)]
-    elif isinstance(pos, str):
+    elif isinstance(pos, str): #if position is string, then we have a dict, or hashmap
         return vec[pos]
-    else:
+    else: #any other cases should raise an error
         raise Exception("The position {} has invalid data type.".format(pos))
 
 def put(vec, pos, val):
 
+    #dealing with the position first
     if tc.is_tensor(pos):
         pos = int(pos.item())
     elif isinstance(pos, float) or isinstance(pos, int):
         pos = int(pos)
     elif isinstance(pos, str):
-        pos = pos
+        pass
     else:
         raise Exception("The position {} has invalid data type.".format(pos))
 
-
+    #dealing with the vector
     if tc.is_tensor(vec):
-        vec[pos] = val
-        return vec
+        newvec = vec.clone() #creating a copy of the input vector
+        newvec[pos] = val
+        return newvec #returning a copy of the old vector, with the value val at position pos
 
     else:
-        return vec.set(pos, val)
+        return vec.set(pos, val) #for both pmap and pvector, .set() returns a new vector/map
+
 
 def peek(vec):
     return vec[0]
@@ -56,13 +59,13 @@ def append(vec, val):
     if not tc.is_tensor(vec):
         vec = tc.tensor(vec)
 
-    return tc.cat([vec, tc.tensor([val])])
+    return tc.cat([vec, tc.tensor([val])]) #tc.cat returns a new tensor -> persistent
 
 def conj(vec, val):
     if not tc.is_tensor(vec):
         vec = tc.tensor(vec)
 
-    return tc.cat([tc.tensor([val]), vec])
+    return tc.cat([tc.tensor([val]), vec]) #tc.cat returns a new tensor -> safe
 
 
 def vector(*x):
