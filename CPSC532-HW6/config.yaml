@@ -1,0 +1,31 @@
+# Weights and biases
+wandb_run: True
+
+# Random seed
+seed: None
+
+# Directory structure
+base_dir: ../CPSC532-HW6 # NOTE: This path should be relative to the daphne path
+daphne_dir: ../daphne  # NOTE: This path should be relative to the repository path
+
+# Parameters
+recursion_limit: 5000
+
+# Tests and programs to run
+deterministic_tests: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
+hoppl_deterministic_tests: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+probabilistic_tests: [1, 2, 3, 4, 5, 6, 7, 8]
+homework5_programs: []
+homework6_programs: [1,2,3]
+
+# Inference method
+#inference: None
+inference: IS
+#inference: SMC
+
+# Compilation
+compile: False
+
+# Inference stuff
+num_samples: 3e4
+tmax: 60 # Seconds

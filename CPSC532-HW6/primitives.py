@@ -1,226 +1,146 @@
-import torch
-import torch.distributions as tdist
-import distributions as dist
+# Standard imports
+import torch as tc
+from pyrsistent._pmap import PMap
+from pyrsistent._plist import PList, _EmptyPList as EmptyPList
+from pyrsistent import pmap, plist
 
-def Normal(alpha, loc, scale, k):
-    return k(dist.Normal(loc.float(), scale.float()))
+# Options
+use_pyrsistent = True
 
-def Bernoulli(alpha, probs, k):
-    return k(dist.Bernoulli(probs))
+def isempty(vec):
+    if tc.is_tensor(vec): #check length of tensor
+        return (vec.numel()==0)
+    else: #check length of pvector or hashmap
+        return (len(vec)==0)
 
-def Categorical(alpha, probs, k):
-    return k(dist.Categorical(probs=probs))
+def get(vec, pos):
+    if tc.is_tensor(pos): #if position is tensor (numeric)
+        return vec[int(pos.item())] #
+    elif isinstance(pos, float) or isinstance(pos, int): #if position is numeric
+        return vec[int(pos)]
+    elif isinstance(pos, str): #if position is string, then we have a dict, or hashmap
+        return vec[pos]
+    else: #any other cases should raise an error
+        raise Exception("The position {} has invalid data type.".format(pos))
 
-def Dirichlet(alpha, concentration, k):
-    return k(dist.Dirichlet(concentration))
-
-def Gamma(alpha, concentration, rate, k):
-    return k(dist.Gamma(concentration, rate))
-
-def Beta(alpha, arg0, arg1, k):
-    return k(tdist.Beta(arg0, arg1))
-
-def Exponential(alpha, rate, k):
-    return k(tdist.Exponential(rate))
-
-def Uniform(alpha, hi, lo, k):
-    return k(tdist.Uniform(hi, lo))
-
-
-
-def sqrt(alpha, arg, k):
-    return k(torch.sqrt(arg.float()))
-
-def exp(alpha, arg, k):
-    return k(torch.exp(arg.float()))
-
-def log(alpha, arg, k):
-    return k(torch.log(arg.float()))
-
-def tanh(alpha, arg, k):
-    return k(torch.tanh(arg.float()))
-
-def add(alpha, a, b, k):
-    return k(torch.add(a, b))
-
-def mul(alpha, a, b, k):
-    return k(torch.mul(a,b))
-
-def div(alpha, a, b, k):
-    return k(torch.div(a,b))
-
-def sub(alpha, a, b, k):
-    return k(torch.sub(a,b))
-
-def gt(alpha, a, b, k):
-    return k(torch.gt(a, b))
-
-def lt(alpha, a, b, k):
-    return k(torch.lt(a,b))
-
-
-def vector(alpha, *args):
-    k = args[-1]
-    args = args[:-1]
-    if len(args) == 0:
-        return k(torch.tensor([]))
-    elif type(args[0]) is torch.Tensor:
-        try:
-            output = torch.stack(args) #stack works for 1D, but also ND
-        except Exception:
-            output = list(args) #NOTE:  that these are NOT persistent
-        return k(output)
+def put(vec, pos, val):
+    #dealing with the position first
+    if tc.is_tensor(pos):
+        pos = int(pos.item())
+    elif isinstance(pos, float) or isinstance(pos, int):
+        pos = int(pos)
+    elif isinstance(pos, str):
+        pass
     else:
-        return k(list(args)) #this is for probability distributions
+        raise Exception("The position {} has invalid data type.".format(pos))
 
+    #dealing with the vector
+    if tc.is_tensor(vec):
+        newvec = vec.clone() #creating a copy of the input vector
+        newvec[pos] = val
+        return newvec #returning a copy of the old vector, with the value val at position pos
 
-def hashmap(alpha, *args):
-    k = args[-1]
-    args = args[:-1]
-    new_map = {} #NOTE: also not persistent
-    for i in range(len(args)//2):
-        if type(args[2*i]) is torch.Tensor:
-            key = args[2*i].item()
-        elif type(args[2*i]) is str:
-            key = args[2*i]
-        else:
-            raise ValueError('Unkown key type, ', args[2*i])
-        new_map[key] = args[2*i+1]
-    return k(new_map)
-
-def first(alpha, sequence, k):
-    return k(sequence[0])
-
-def second(alpha, sequence, k):
-    return k(sequence[1])
-
-def rest(alpha, sequence, k):
-    return k(sequence[1:])
-
-
-def last(alpha, sequence, k):
-    return k(sequence[-1])
-
-def get(alpha, data, element, k):
-    if type(data) is dict:
-        if type(element) is torch.Tensor:
-            key = element.item()
-        elif type(element) is str:
-            key = element
-        return k(data[key])
     else:
-        return k(data[int(element)])
-
-def put(alpha, data, element, value, k): #vector, index, value
-    if type(data) is dict:
-        newhashmap = data.copy() #NOTE: right now we're copying
-        if type(element) is torch.Tensor:
-            key = element.item()
-        elif type(element) is str:
-            key = element
-        newhashmap[key] = value
-        return k(newhashmap)
-    else:
-        newvector = data.clone() 
-        newvector[int(element)] = value
-        return k(newvector)
-
-def remove(alpha, data, element, k):
-    if type(data) is dict:
-        newhashmap = data.copy()
-        if type(element) is torch.Tensor:
-            key = element.item()
-        elif type(element) is str:
-            key = element
-        _ = newhashmap.pop(key)        
-        return k(newhashmap)
-    else:
-        idx = int(element)
-        newvector = torch.cat([data[0:idx],data[idx+1:]],dim=0)
-        return k(newvector)
-    
-def append(alpha, data, value, k):
-    return k(torch.cat([data,torch.tensor([value])], dim=0))
-
-def is_empty(alpha, arg, k):
-    return k(len(arg) == 0)
-
-def peek(alpha, sequence, k): #NOTE: only defined for vector
-    return k(sequence[0])
-
-def conj(alpha, sequence, element, k):
-    if type(sequence) is torch.Tensor:
-        return k(torch.cat((element.reshape(1), sequence)))
-    elif type(sequence) is list:
-        return k([element] + sequence)
+        return vec.set(pos, val) #for both pmap and pvector, .set() returns a new vector/map
 
 
-def mat_transpose(alpha, arg, k):
-    return k(torch.transpose(arg, 1, 0))
+def peek(vec):
+    return vec[0]
 
-def mat_mul(alpha, arg0, arg1, k):
-    return k(torch.matmul(arg0,arg1))
-    
-def mat_repmat(alpha, mat, dim, n, k):
-    shape = [1,1]
-    shape[int(dim)] = int(n)
-    return k(mat*torch.ones(tuple(shape)))
+def first(vec):
+    return vec[0]
 
+def second(vec):
+    return vec[1]
 
-def push_addr(alpha, value, k):
-    # print('pushing ', value, ' onto ', alpha)
-    return k(alpha + '_' + value)
+def rest(vec):
+    return vec[1:]
 
+def last(vec):
+    return vec[-1]
 
-env = {
-       #distr
-           'normal': Normal,
-           'beta': Beta,
-           'discrete': Categorical,
-           'dirichlet': Dirichlet,
-           'exponential': Exponential,
-           'uniform-continuous': Uniform,
-           'gamma': Gamma,
-           'flip': Bernoulli,
-           
-           # #math
-           'sqrt': sqrt,
-           'exp': exp,
-           'log': log,
-           'mat-tanh' : tanh,
-           'mat-add' : add,
-           'mat-mul' : mat_mul,
-           'mat-transpose' : mat_transpose,
-           'mat-repmat' : mat_repmat,
-           '+': add,
-           '-': sub,
-           '*': mul,
-           '/': div,
-           
-           # #
-           '<' : lt,
-           '>' : gt,
-           # '<=' : torch.le,
-           # '>=' : torch.ge,
-           # '=' : torch.eq,
-           # '!=' : torch.ne,
-           # 'and' : torch.logical_and,
-           # 'or' : torch.logical_or,
+def append(vec, val):
+    if not tc.is_tensor(vec):
+        vec = tc.tensor(vec)
 
-           'vector': vector,
-           'hash-map' : hashmap,
-           'get': get,
-           'put': put,
-           'append': append,
-           'first': first,
-           'second': second,
-           'rest': rest,
-           'last': last,
-           'empty?': is_empty,
-           'conj' : conj,
-           'peek' : peek,
+    return tc.cat([vec, tc.tensor([val])]) #tc.cat returns a new tensor -> persistent
 
-           'push-address' : push_addr,
-           }
+def conj(vec, val):
+    if not tc.is_tensor(vec):
+        vec = tc.tensor(vec)
+
+    return tc.cat([tc.tensor([val]), vec]) #tc.cat returns a new tensor -> safe
 
 
+def vector(*x):
+    # This needs to support both lists and vectors
+    try:
+        result = tc.stack(x) # NOTE: Important to use stack rather than tc.tensor
+    except: # NOTE: This except is horrible, but necessary for list/vector ambiguity
+        result = plist(x) if use_pyrsistent else list(x)
+    return result
+
+
+def hashmap(*x):
+    # This is a dictionary
+    keys, values = x[0::2], x[1::2]
+    checked_keys = []
+    for key in keys: # Torch tensors cannot be dictionary keys, so convert here
+        if type(key) is tc.Tensor: key = float(key)
+        checked_keys.append(key)
+    dictionary = dict(zip(checked_keys, values))
+    hashmap = pmap(dictionary) if use_pyrsistent else dictionary
+    return hashmap
+
+
+def push_address(*x):
+    # Concatenate two addresses to produce a new, unique address
+    previous_address, current_addreess, continuation = x[0], x[1], x[2]
+    return continuation(previous_address+'-'+current_addreess)
+
+
+# Primitive function dictionary
+# NOTE: Fill this in
+primitives = {
+
+    # HOPPL
+    'push-address': push_address,
+
+    # Comparisons
+    '<': lambda *x: x[-1](tc.lt(*x[1:-1])),
+    '>': lambda *x: x[-1](tc.gt(*x[1:-1])),
+
+    # Maths
+    '+': lambda *x: x[-1](tc.add(*x[1:-1])),
+    '-': lambda *x: x[-1](tc.sub(*x[1:-1])),
+    '*': lambda *x: x[-1](tc.mul(*x[1:-1])),
+    '/': lambda *x: x[-1](tc.div(*x[1:-1])),
+    'sqrt': lambda *x: x[-1](tc.sqrt(*x[1:-1])),
+    'log': lambda *x: x[-1](tc.log(*x[1:-1])),
+
+    # Containers
+    'vector': lambda *x: x[-1](vector(*x[1:-1])),
+    'hash-map': lambda *x: x[-1](hashmap(*x[1:-1])),
+    'get' : lambda *x: x[-1](get(*x[1:-1])),
+    'put' : lambda *x : x[-1](put(*x[1:-1])),
+    'first': lambda *x : x[-1](first(*x[1:-1])),
+    'second': lambda *x: x[-1](second(*x[1:-1])),
+    'rest': lambda *x: x[-1](rest(*x[1:-1])),
+    'last': lambda *x: x[-1](last(*x[1:-1])),
+    'append': lambda *x: x[-1](append(*x[1:-1])),
+    'empty?': lambda *x: x[-1](isempty(*x[1:-1])),
+    'conj': lambda *x: x[-1](conj(*x[1:-1])),
+    'peek': lambda *x: x[-1](peek(*x[1:-1])),
+
+    # Matrices
+    'mat-transpose': lambda *x: x[-1](tc.transpose(*x[1:-1], 0, 1)),
+
+    # Distributions
+    'normal': lambda *x: x[-1](tc.distributions.Normal(*x[1:-1])),
+    'beta': lambda *x: x[-1](tc.distributions.Beta(*x[1:-1])),
+    'exponential': lambda *x: x[-1](tc.distributions.Exponential(*x[1:-1])),
+    'uniform-continuous': lambda *x: x[-1](tc.distributions.Uniform(*x[1:-1])),
+    'flip': lambda *x: x[-1](tc.distributions.Bernoulli(*x[1:-1])),
+    'discrete': lambda *x: x[-1](tc.distributions.Categorical(*x[1:-1])),
+
+}

@@ -1,3 +1,0 @@
-;; arithmetic, defn + recursion
-(let [f (fn [n] (if (< n 2) 1 (* n (f (- n 1)))))]
-(f 5))

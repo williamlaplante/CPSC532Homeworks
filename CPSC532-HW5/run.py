@@ -110,10 +110,13 @@ def run_all(cfg):
     daphne_dir = cfg['daphne_dir']
     seed = cfg['seed']
     recursion_limit = cfg['recursion_limit']
+    programs = cfg['homework5_programs']
 
     # Calculations
     sys.setrecursionlimit(recursion_limit)
     if (seed != 'None'): tc.manual_seed(seed)
+
+    if wandb_run and (len(programs) != 0): wandb.init(project='HW5', entity='cs532-2022')
 
     # Deterministic tests
     tests = cfg['deterministic_tests']
@@ -128,8 +131,6 @@ def run_all(cfg):
     run_tests(tests, test_type='probabilistic', base_dir=base_dir, daphne_dir=daphne_dir, compile=compile, verbose=False)
 
     # Homework 5
-    programs = cfg['homework5_programs']
-    if wandb_run and (len(programs) != 0): wandb.init(project='HW5', entity='cs532-2022')
     run_programs(programs, prog_set='homework_5', base_dir=base_dir, daphne_dir=daphne_dir, 
         num_samples=num_samples, tmax=tmax, compile=compile, wandb_run=wandb_run, verbose=False)
     if wandb_run and (len(programs) != 0): wandb.finish()

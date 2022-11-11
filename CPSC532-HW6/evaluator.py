@@ -1,223 +1,136 @@
-from primitives import env as penv
-import json
-import torch
-from daphne import daphne
-from pyrsistent import pmap, plist
-import numpy as np
-from tests import is_tol, run_prob_test,load_truth
+# Standard imports
+import torch as tc
+from pyrsistent import pmap
+from time import time
+import sys
+# Project imports
+from primitives import primitives
 
-#these are adapted from Peter Norvig's Lispy
-class Env():
-    "An environment: a dict of {'var': val} pairs, with an outer Env."
+# Parameters
+run_name = 'start'
+
+class Env(dict):
+    'An environment: a dict of {var: val} pairs, with an outer environment'
     def __init__(self, parms=(), args=(), outer=None):
-        self.data = pmap(zip(parms, args))
+        self.update(zip(parms, args))
         self.outer = outer
-        if outer is None:
-            self.level = 0
-        else:
-            self.level = outer.level+1
-
-    def __getitem__(self, item):
-        return self.data[item]
-
+    
     def find(self, var):
-        "Find the innermost Env where var appears."
-        if (var in self.data):
-            return self
+        'Find the innermost Env where var appears'
+        if var in self:
+            result = self
         else:
-            if self.outer is not None:
-                return self.outer.find(var)
+            if self.outer is None:
+                # print('Not found in any environment:', var)
+                raise ValueError('Outer limit of environment reached')
             else:
-                raise RuntimeError('var "{}" not found in outermost scope'.format(var))
-
-    def print_env(self, print_lowest=False):
-        print_limit = 1 if print_lowest == False else 0
-        outer = self
-        while outer is not None:
-            if outer.level >= print_limit:
-                print('Scope on level ', outer.level)
-                if 'f' in outer:
-                    print('Found f, ')
-                    print(outer['f'].body)
-                    print(outer['f'].parms)
-                    print(outer['f'].env)
-                print(outer,'\n')
-            outer = outer.outer
+                result = self.outer.find(var)
+        return result
 
 
 class Procedure(object):
-    "A user-defined Scheme procedure."
-    def __init__(self, parms, body, env):
-        self.parms, self.body, self.env = parms, body, env
+    'A user-defined HOPPL procedure'
+    def __init__(self, params:list, body:list, sig:dict, env:Env):
+        self.params, self.body, self.sig, self.env = params, body, sig, env
     def __call__(self, *args):
-        return evaluate(self.body, Env(self.parms, args, self.env))
+        return eval(self.body, self.sig, Env(self.params, args, self.env))
 
 
 def standard_env():
-    "An environment with some Scheme standard procedures."
-    env = Env(penv.keys(), penv.values())
+    'An environment with some standard procedures'
+    env = Env()
+    env.update(primitives)
     return env
 
 
+def eval(e, sig:dict, env:Env, verbose=False):
+    '''
+    The eval routine
+    @params
+        e: expression
+        sig: side-effects
+        env: environment
+    '''
 
-def evaluate(exp, env=None):
-
-    if env is None:
-        env = standard_env()
-        
+    if isinstance(e, bool):
+        return tc.tensor(int(e)).float()
     
-    if type(exp) is list:
-        op, *args = exp
-        if op == 'sample':
-            alpha = evaluate(args[0], env=env)
-            d = evaluate(args[1], env=env)
-            s = d.sample()
-            k = evaluate(args[2], env=env)
-            sigma = {'type' : 'sample'
-                     #TODO: put any other stuff you need here
-                     }
-            return k, [s], sigma
-        elif op == 'observe':
-            alpha = evaluate(args[0], env=env)
-            d = evaluate(args[1], env=env)
-            c = evaluate(args[2], env=env)
-            k = evaluate(args[3], env=env)
-            sigma = {'type' : 'observe'
-                     #TODO: put any other stuff you need here
-                     }
-            return k, [c], sigma
-        elif op == 'if':
-            cond,conseq,alt = args
-            if evaluate(cond, env=env):
-                return evaluate(conseq, env=env)
-            else:
-                return evaluate(alt, env=env)
-        elif op == 'fn': 
-            params, body = args #fn is:  ['fn', ['arg1','arg2','arg3'], body_exp]
-            return Procedure(params, body, env)
-        else: #func eval
-            proc = evaluate(op, env=env)
-            values = [evaluate(e, env=env) for e in args]
-            sigma = {'type' : 'proc'
-                     #TODO: put any other stuff you need here
-                     }
-            return proc, values, sigma
-    elif type(exp) is str:
-        if exp[0] == "\"":  # strings have double, double quotes
-            return exp[1:-1]
-        if exp[0:4] == 'addr':
-            return exp[4:]
-        lowest_env = env.find(exp)
-        return lowest_env[exp]
-    elif type(exp) is float or type(exp) is int or type(exp) is bool:
-        return torch.tensor(exp)
-    else:
-        raise ValueError('Expression type unkown')
+    elif isinstance(e, float) or isinstance(e,int): #case : constant
+        return tc.tensor(e).float()
+    
+    elif isinstance(e, str): #case : variable or procedure (anything in the env)
+        if e[0] == "\"":  # strings have double, double quotes
+            return e[1:-1]
+        if e[0:4] == 'addr':
+            return e[4:]
 
+        return env.find(e)[e]
 
-def sample_from_prior(exp):
-    #init calc:
-    output = lambda x: x #The output is the identity
-    res =  evaluate(exp, env=None)('addr_start', output) #set up the initial call
-    while type(res) is tuple: #if there are continuations, the res will be a tuple
-        cont, args, sigma = res #res is contininuation, arguments, and a map, which you can use to pass back some additional stuff
-        res = cont(*args) #call the continuation
-    #when res is not a tuple, the calculation has finished
-    return res
+            
+    op, *args = e
+    
+    if op == 'sample' or op=="sample*":
+        addr = eval(args[0], sig, env)
+        d = eval(e[2], sig, env)
+        k = eval(args[-1], sig, env)
 
-def get_stream(exp):
-    while True:
-        yield sample_from_prior(exp)
+        new_sig = pmap({
+            "type" : "sample",
+            "address": addr,
+            "logW": sig["logW"],
+        })
+        return k, [d.sample()], new_sig
+    
+    elif op == 'observe' or op=="observe*":
+        addr = eval(args[0], sig, env)
+        dist = eval(args[1], sig, env)
+        obs = eval(args[2], sig, env)
+        k = eval(args[-1], sig, env)
+        
+        new_sig = pmap({
+            "type" : "observe",
+            "address" : addr,
+            "logW" : sig["logW"] + dist.log_prob(obs),
+        })
 
+        return k, [obs], new_sig
 
-def run_deterministic_tests(use_cache=True, cache='programs/tests/'):
+    elif op == 'if': # conditional
+        (test, conseq, alt) = args
+        exp = (conseq if eval(test, sig, env) else alt)
+        return eval(exp, sig, env)
+    
+    elif op == 'fn':         # procedure
+        (params, body) = args
+        return Procedure(params=params, body=body, sig=sig, env=env)
+    
+    else:                        # procedure call
+        proc = eval(op, sig, env)
 
-    for i in range(1,15):
-        if use_cache:
-            with open(cache + 'deterministic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
+        vals = []
+        
+        for arg in args:
+            val = eval(arg, sig, env)
+            vals.append(val)
+        
+        if callable(proc):
+            return proc(*vals)
         else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/deterministic/test_{}.daphne'.format(i)])
-            with open(cache + 'deterministic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
-        truth = load_truth('programs/tests/deterministic/test_{}.truth'.format(i))
-        ret = sample_from_prior(exp)
-        try:
-            assert(is_tol(ret, truth))
-        except:
-            raise AssertionError('return value {} is not equal to truth {} for exp {}'.format(ret,truth,exp))
-        print('Test {} passed'.format(i))
-
-    print('FOPPL Tests passed')
-
-    for i in range(1,13):
-        if use_cache:
-            with open(cache + 'hoppl-deterministic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
-        else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/hoppl-deterministic/test_{}.daphne'.format(i)])
-            with open(cache + 'hoppl-deterministic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
-
-        truth = load_truth('programs/tests/hoppl-deterministic/test_{}.truth'.format(i))
-        ret = sample_from_prior(exp)
-
-        try:
-            assert(is_tol(ret, truth))
-        except:
-            raise AssertionError('return value {} is not equal to truth {} for exp {}'.format(ret,truth,exp))
-
-        print('Test {} passed'.format(i))
-
-    print('All deterministic tests passed')
+            raise Exception("{} is not callable (User Exception).".format(proc))
 
 
-
-def run_probabilistic_tests(use_cache=True, cache='programs/tests/'):
-
-    num_samples=1e4
-    max_p_value = 1e-2
-
-    for i in [1,2,3,4,6]: #test 5 does not work, sorry. 
-        if use_cache:
-            with open(cache + 'probabilistic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
-        else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/probabilistic/test_{}.daphne'.format(i)])
-            with open(cache + 'probabilistic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
-        truth = load_truth('programs/tests/probabilistic/test_{}.truth'.format(i))
-
-        stream = get_stream(exp)
-
-        p_val = run_prob_test(stream, truth, num_samples)
-
-        print('p value', p_val)
-        assert(p_val > max_p_value)
-
-    print('All probabilistic tests passed')
-
-
-if __name__ == '__main__':
-    # run the tests, if you wish:  
-   # run_deterministic_tests(use_cache=False)
-   # run_probabilistic_tests(use_cache=False)
-
-    #load your precompiled json's here:
-    with open('programs/{}.json'.format(4),'r') as f:
-        exp = json.load(f)
-
-    #this should run a sample from the prior
-    print(sample_from_prior(exp))
-
-
-    #you can see how the CPS works here, you define a continuation for the last call:
-    output = lambda x: x #The output is the identity
-
-    res =  evaluate(exp, env=None)('addr_start', output) #set up the initial call, every evaluate returns a continuation, a set of arguments, and a map sigma at every procedure call, every sample, and every observe
-    cont, args, sigma = res
-    print(cont, args, sigma)
-    #you can keep calling this to run the program forward:
-    res = cont(*args)
-    #you know the program is done, when "res" is not a tuple, but a simple data object
-
+def evaluate(ast:dict, sig={}, verbose=False):
+    '''
+    Evaluate a HOPPL program as desugared by daphne
+    Args:
+        ast: abstract syntax tree
+    Returns: The return value of the program
+    '''
+    env = standard_env()
+    output = lambda x: x # Identity function, so that output value is identical to output
+    sig = {"logW" : tc.tensor(0.0)}
+    exp = eval(ast, sig, env, verbose)(run_name, output) # NOTE: Must run as function with a continuation
+    while type(exp) is tuple: # If there are continuations the exp will be a tuple and a re-evaluation needs to occur
+        func, args, sig = exp
+        exp = func(*args)
+    return exp, sig
