@@ -1,0 +1,43 @@
+wandb_run: false
+entity: williamlaplante
+base_dir: ../Project
+daphne_dir: ../daphne
+deterministic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+- 11
+- 12
+- 13
+- 14
+- 15
+- 16
+- 17
+- 18
+- 19
+- 20
+probabilistic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+Project_programs:
+- 1
+prog_set: Project
+compile: false
+mode: graph
+num_samples: 10000.0
+BBVI: false
+save: false
+verbose: false

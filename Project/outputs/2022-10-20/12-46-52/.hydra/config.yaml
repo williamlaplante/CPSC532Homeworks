@@ -1,0 +1,45 @@
+wandb_run: false
+entity: williamlaplante
+base_dir: ../CPSC532Homeworks/CPSC532-HW4
+daphne_dir: ../../daphne
+deterministic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+- 11
+- 12
+- 13
+- 14
+- 15
+- 15
+- 16
+- 17
+- 18
+- 19
+- 20
+probabilistic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+HW4_programs:
+- 1
+- 2
+- 3
+- 4
+- 5
+prog_set: HW4
+compile: false
+mode: desugar
+num_samples: 1000.0

@@ -1,0 +1,38 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.3
+    code_path: code/CPSC532-HW4/run.py
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.7
+    start_time: 1666838255.530911
+    t:
+      1:
+      - 1
+      - 50
+      - 55
+      2:
+      - 1
+      - 5
+      - 50
+      - 53
+      - 55
+      3:
+      - 2
+      - 23
+      4: 3.9.7
+      5: 0.13.3
+      8:
+      - 5
+      10:
+      - 5
+    viz:
+      Program 4; heatmap:
+        historyFieldSettings:
+          key: Program 4; heatmap
+          x-axis: _step
+        id: wandb/heatmap_no_text/v1

@@ -1,0 +1,34 @@
+[
+    {},
+    {
+        "V": [
+            "sample0",
+            "sample1"
+        ],
+        "A": {
+            "sample0": [
+                "sample1"
+            ]
+        },
+        "P": {
+            "sample0": [
+                "sample*",
+                [
+                    "normal",
+                    0,
+                    1
+                ]
+            ],
+            "sample1": [
+                "sample*",
+                [
+                    "normal",
+                    "sample0",
+                    1
+                ]
+            ]
+        },
+        "Y": {}
+    },
+    "sample1"
+]

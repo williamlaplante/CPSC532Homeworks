@@ -1,0 +1,23 @@
+wandb_run: false
+entity: williamlaplante
+base_dir: ../CPSC532-HW4
+daphne_dir: ../daphne
+deterministic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+probabilistic_tests:
+- 1
+- 2
+- 3
+- 4
+- 5
+HW4_programs: []
+prog_set: HW4
+compile: false
+mode: graph
+num_samples: 10000.0
+BBVI: true
+save: false
