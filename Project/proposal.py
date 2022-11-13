@@ -65,6 +65,8 @@ class Proposal():
         return lik
     
     def get_params(self):
-        params = (self.links[latent].parameters() for latent in self.ordered_latent_vars)
-        return chain(params)
+        params = []
+        for latent, neuralnet in self.links.items():
+            params += [*neuralnet.parameters()]
+        return params
 

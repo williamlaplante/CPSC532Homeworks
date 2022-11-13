@@ -49,6 +49,7 @@ class ModelDataset(Dataset):
         self.num_samples = num_samples
         self.X = []
         self.Y = []
+        self.lik = []
         return
     
     def get_sample(self, dict_form = False):
@@ -81,12 +82,15 @@ class ModelDataset(Dataset):
     def build_dataset(self):
         self.X = []
         self.Y = []
+        self.lik = []
         for i in range(self.num_samples):
             x, y, lik = self.get_sample()
             self.X.append(x)
             self.Y.append(y)
+            self.lik.append(lik)
         self.X = tc.stack(self.X) #cols are in topological order
         self.Y = tc.stack(self.Y) #cols are in topological order
+        self.lik = tc.stack(self.lik)
         return
 
     def __getitem__(self, idx):
@@ -114,14 +118,21 @@ def inference_compilation(g, num_samples = int(1e1), wandb_name = None, wandb_ru
     for epoch in range(2):  # loop over the dataset multiple times
 
         for i, data in enumerate(dataloader):
+            #zero parameter gradients
+            optimizer.zero_grad()
+
             # get the data
             X, y = data
+
+            #compute log probability of proposal with 
+            log_prob_propoal = [proposal.log_prob(x, y) for (x,y) in zip(X, y)]
+            log_prob_model = [] #NEED TO GET THE LIKELIHOOD OF SAMPLE (LOG PROB OF MODEL)
+                
+
             print(X)
             print(y)
             return
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = net(inputs)
